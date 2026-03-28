@@ -20,48 +20,38 @@
     @close="closeModal"
   >
     <template #content>
-      <div class="space-y-3 pb-26 max-h-[46vh] overflow-y-auto pr-1">
-        <div class="text-xs" :class="apiOnline ? 'text-success' : 'text-error'">
+      <div class="flex h-[58vh] min-h-0 flex-col">
+        <div class="pb-2 text-xs" :class="apiOnline ? 'text-success' : 'text-error'">
           {{ apiOnline ? "API online" : "API offline" }}
         </div>
 
-        <div
-          v-for="message in messages"
-          :key="message.id"
-          class="chat"
-          :class="message.role === 'user' ? 'chat-end' : 'chat-start'"
-        >
-          <div class="chat-bubble" :class="message.role === 'user' ? 'chat-bubble-primary' : ''">
-            <template v-if="message.role === 'assistant'">
-              <div class="chat-rich-text" v-html="renderAssistantMessage(message.text)" />
-            </template>
-            <template v-else>
-              {{ message.text }}
-            </template>
-          </div>
-          <div class="chat-footer opacity-50">{{ formatFooterTime(message.createdAt) }}</div>
-        </div>
-
-        <div v-if="isLoading" class="chat chat-start">
-          <div class="chat-bubble">
-            <span class="loading loading-dots loading-sm" />
-          </div>
-        </div>
-      </div>
-      <div class="absolute bottom-2 left-2 right-2">
-        <div class="flex gap-2 mb-2 overflow-x-auto">
-          <button
-            v-for="suggestion in suggestions"
-            :key="suggestion"
-            class="btn btn-sm btn-outline shrink-0"
-            :disabled="isLoading"
-            @click="sendMessage(suggestion)"
+        <div ref="messagesContainerRef" class="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
+          <div
+            v-for="message in messages"
+            :key="message.id"
+            class="chat"
+            :class="message.role === 'user' ? 'chat-end' : 'chat-start'"
           >
-            {{ suggestion }}
-          </button>
+            <div class="chat-bubble" :class="message.role === 'user' ? 'chat-bubble-primary' : ''">
+              <template v-if="message.role === 'assistant'">
+                <div class="chat-rich-text" v-html="renderAssistantMessage(message.text)" />
+              </template>
+              <template v-else>
+                {{ message.text }}
+              </template>
+            </div>
+            <div class="chat-footer opacity-50">{{ formatFooterTime(message.createdAt) }}</div>
+          </div>
+
+          <div v-if="isLoading" class="chat chat-start">
+            <div class="chat-bubble">
+              <span class="loading loading-dots loading-sm" />
+            </div>
+          </div>
         </div>
 
-        <div class="flex gap-2">
+        <div class="pt-2">
+          <div class="flex gap-2">
           <input
             v-model="inputMessage"
             type="text"
@@ -73,6 +63,7 @@
           <button class="btn btn-primary" :disabled="isLoading || !canSend" @click="sendMessage()">
             Enviar
           </button>
+          </div>
         </div>
       </div>
     </template>
@@ -83,18 +74,13 @@
 import Toogle from "../../components/Toogle.vue";
 import Modal from "../chat/ChatView.vue";
 import { ApiError, healthCheck, predict } from "../chat/chatApi";
-import { computed, ref } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
 
 const chatModal = ref<InstanceType<typeof Modal> | null>(null);
+const messagesContainerRef = ref<HTMLDivElement | null>(null);
 const inputMessage = ref("");
 const isLoading = ref(false);
 const apiOnline = ref(false);
-
-const suggestions = [
-  "O que voce faz?",
-  "Quais previsoes voce consegue gerar?",
-  "Me explique sua resposta de forma simples",
-];
 
 type ChatMessage = {
   id: number;
@@ -242,7 +228,7 @@ async function refreshHealth() {
 }
 
 async function sendMessage(suggestedQuestion?: string) {
-  const nextQuestion = (suggestedQuestion ?? inputMessage.value).trim();
+  const nextQuestion = suggestedQuestion ?? inputMessage.value.trim();
 
   if (nextQuestion.length < 3 || isLoading.value) {
     return;
@@ -289,11 +275,30 @@ async function sendMessage(suggestedQuestion?: string) {
 const openModal = () => {
   chatModal.value?.openModal();
   void refreshHealth();
+  void nextTick(scrollMessagesToBottom);
 };
 
 const closeModal = () => {
   chatModal.value?.closeModal();
 };
+
+function scrollMessagesToBottom() {
+  if (!messagesContainerRef.value) {
+    return;
+  }
+
+  messagesContainerRef.value.scrollTo({
+    top: messagesContainerRef.value.scrollHeight,
+    behavior: "smooth",
+  });
+}
+
+watch(
+  () => [messages.value.length, isLoading.value],
+  () => {
+    void nextTick(scrollMessagesToBottom);
+  },
+);
 </script>
 
 <style scoped>
